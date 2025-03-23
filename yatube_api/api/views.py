@@ -1,17 +1,17 @@
 from django.shortcuts import get_object_or_404
 from rest_framework import filters, mixins, pagination, permissions, viewsets
-from posts.models import Post, Group, Follow
+from posts.models import Post, Group, Comment, Follow
 from .serializers import (
     PostSerializer,
     GroupSerializer,
     CommentSerializer,
     FollowSerializer
 )
-from .permissions import IsAuthorOrReadOnly
+from .permissions import AuthorModifyOrReadOnly
 
 
 class PermissionViewset(viewsets.ModelViewSet):
-    permission_classes = (IsAuthorOrReadOnly,)
+    permission_classes = (AuthorModifyOrReadOnly,)
 
 
 class GroupViewSet(viewsets.ReadOnlyModelViewSet):
@@ -25,26 +25,35 @@ class PostViewSet(PermissionViewset):
     pagination_class = pagination.LimitOffsetPagination
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
+        return serializer.save(
+            author=self.request.user
+        )
 
 
 class CommentViewSet(PermissionViewset):
+    queryset = Comment.objects.all()
     serializer_class = CommentSerializer
 
     def get_queryset(self):
         return self.get_post_obj().comments.all()
 
     def get_post_obj(self):
-        return get_object_or_404(Post, pk=self.kwargs.get('post_pk'))
+        return get_object_or_404(
+            Post,
+            pk=self.kwargs.get('post_pk')
+        )
 
     def perform_create(self, serializer):
-        serializer.save(author=self.request.user, post=self.get_post_obj())
+        return serializer.save(
+            author=self.request.user,
+            post=self.get_post_obj()
+        )
 
 
 class FollowViewSet(
+    viewsets.GenericViewSet,
     mixins.CreateModelMixin,
-    mixins.ListModelMixin,
-    viewsets.GenericViewSet
+    mixins.ListModelMixin
 ):
     serializer_class = FollowSerializer
     permission_classes = (permissions.IsAuthenticated,)
@@ -52,7 +61,9 @@ class FollowViewSet(
     search_fields = ('following__username',)
 
     def get_queryset(self):
+        # Используем related_name='follower' для получения подписок текущего пользователя
         return self.request.user.follower.all()
 
     def perform_create(self, serializer):
+        # Автоматически присваиваем текущего пользователя полю 'user'
         serializer.save(user=self.request.user)
