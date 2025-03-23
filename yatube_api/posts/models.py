@@ -42,8 +42,30 @@ class Follow(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='follower')
+        related_name='follower',
+        verbose_name='Подписчик'
+    )
     following = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='following')
+        related_name='following',
+        verbose_name='Автор, на которого подписываются'
+    )
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=['user', 'following'],
+                name='unique_follow'
+            )
+        ]
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'
+
+    def clean(self):
+        # Дополнительная проверка: пользователь не может подписаться сам на себя
+        if self.user == self.following:
+            raise ValidationError("Пользователь не может подписаться сам на себя.")
+
+    def __str__(self):
+        return f"{self.user.username} подписан на {self.following.username}"
